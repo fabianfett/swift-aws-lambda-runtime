@@ -186,9 +186,11 @@ extension Lambda {
                       logger: Logger,
                       eventLoop: EventLoop,
                       allocator: ByteBufferAllocator) {
-            var baggage = Baggage.topLevel
-            baggage.lambdaRequestID = requestID
-            baggage.lambdaTraceID = traceID
+            let baggage = Baggage.topLevel
+            var logger = logger
+            logger[metadataKey: "awsRequestID"] = .string(requestID)
+            logger[metadataKey: "awsTraceID"] = .string(traceID)
+            
             self.storage = Storage(
                 baggage: baggage,
                 invokedFunctionARN: invokedFunctionARN,
