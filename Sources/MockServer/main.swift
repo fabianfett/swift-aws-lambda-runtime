@@ -33,8 +33,14 @@ internal struct MockServer {
         let bootstrap = ServerBootstrap(group: group)
             .serverChannelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
             .childChannelInitializer { channel in
-                channel.pipeline.configureHTTPServerPipeline(withErrorHandling: true).flatMap { _ in
-                    channel.pipeline.addHandler(HTTPHandler(mode: self.mode))
+                do {
+                    try channel.pipeline.syncOperations.configureHTTPServerPipeline(withErrorHandling: true)
+                    try channel.pipeline.syncOperations.addHandler(NIOHTTPServerRequestAggregator(maxContentLength: 4 * 1024))
+                    try channel.pipeline.syncOperations.addHandler(HTTPHandler(mode: self.mode))
+                    return channel.eventLoop.makeSucceededFuture(())
+                }
+                catch {
+                    return channel.eventLoop.makeFailedFuture(error)
                 }
             }
         try bootstrap.bind(host: self.host, port: self.port).flatMap { channel -> EventLoopFuture<Void> in
@@ -48,41 +54,21 @@ internal struct MockServer {
 }
 
 internal final class HTTPHandler: ChannelInboundHandler {
-    public typealias InboundIn = HTTPServerRequestPart
+    public typealias InboundIn = NIOHTTPServerRequestFull
     public typealias OutboundOut = HTTPServerResponsePart
 
     private let mode: Mode
-
-    private var pending = CircularBuffer<(head: HTTPRequestHead, body: ByteBuffer?)>()
 
     public init(mode: Mode) {
         self.mode = mode
     }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        let requestPart = unwrapInboundIn(data)
-
-        switch requestPart {
-        case .head(let head):
-            self.pending.append((head: head, body: nil))
-        case .body(var buffer):
-            var request = self.pending.removeFirst()
-            if request.body == nil {
-                request.body = buffer
-            } else {
-                request.body!.writeBuffer(&buffer)
-            }
-            self.pending.prepend(request)
-        case .end:
-            let request = self.pending.removeFirst()
-            self.processRequest(context: context, request: request)
-        }
-    }
-
-    func processRequest(context: ChannelHandlerContext, request: (head: HTTPRequestHead, body: ByteBuffer?)) {
         var responseStatus: HTTPResponseStatus
         var responseBody: String?
         var responseHeaders: [(String, String)]?
+        
+        let request = unwrapInboundIn(data)
 
         if request.head.uri.hasSuffix("/next") {
             let requestId = UUID().uuidString
