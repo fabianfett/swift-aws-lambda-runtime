@@ -1,18 +1,6 @@
----
-layout: post
-author: Fabian Fett
-title:  "Create your first HTTP endpoint with Swift on AWS Lambda"
-preview_image: /assets/img/posts/2020-06-01/preview.png
-preview_image_width: 800
-preview_image_height: 800
-preview_image_alt: "Swift Icon overlaps AWS Lambda Icon"
-date:   2020-07-27 20:29:00 +0200
-last_modified_at: 2020-07-28 13:54:00 +0200
-tags: ["aws", "lambda", "server-side swift", "http", "apigateway"]
-description: Learn how to create and deploy your first APIGateway v2 HTTP endpoint using Swift on AWS Lambda.
----
+# Create your first HTTP endpoint with Swift on AWS Lambda
 
-This tutorial shall help you to create and deploy your first Swift Lambda HTTP endpoint. It assumes that you have completed my [Getting started with Swift AWS Lambda Runtime](/getting-started-with-swift-aws-lambda-runtime) tutorial, since it starts where the former ended. We will modify the existing code to work as an HTTP endpoint.
+This tutorial shall help you to create and deploy your first Swift Lambda HTTP endpoint. It assumes that you have completed the [Getting started with Swift AWS Lambda Runtime](01-getting-started.md) tutorial, since it starts where the former ended. We will modify the existing code to work as an HTTP endpoint.
 
 AWS Services integrate with Lambda by sending special json payloads to Lambda. [`swift-aws-lambda-runtime`](https://github.com/swift-server/swift-aws-lambda-runtime) already offers implementations for a number of these services out of the box with the [`AWSLambdaEvents`](https://github.com/swift-server/swift-aws-lambda-runtime/tree/master/Sources/AWSLambdaEvents) library. To integrate your Lambda with an AWS Service your Lambda's input and output types must match the requirements of the invoking service. 
 
@@ -20,9 +8,9 @@ In this example we will use the [Amazon API Gateway's HTTP API Service](https://
 
 You can find the resulting code on [GitHub](https://github.com/fabianfett/swift-aws-lambda-api-hello-world).
 
-If you have any questions or recommendations, contact me on [twitter](https://twitter.com/fabianfett) or open an [issue on GitHub](https://github.com/fabianfett/swift-aws-lambda-api-hello-world/issues) so that you can get your question answered and this tutorial can be improved.
+If you have any questions or recommendations, open an [issue on GitHub](https://github.com/swift-server/swift-aws-lambda-runtime/issues) so that you can get your question answered and this tutorial can be improved.
 
-*Note: The following instructions were recorded on July 27, 2020 and the GUI may have changed since then. Feel free to contact me on [twitter](https://twitter.com/fabianfett) if you see a different one.*
+*Note: The following instructions were recorded on July 27, 2020 and the GUI may have changed since then. Feel free to open a GitHub issue if you see a different one.*
 
 ### Step 1: Modify the Package.swift
 
@@ -366,7 +354,7 @@ Next, let's change our Lambda to handle a json input on the `/hello` route with 
       http://localhost:7000/invoke
     ```
 
-    > ⚠️ **Note**: I have changed the `GET` to `POST` in this payload and added a `body`, that holds a string containing json.
+    > ⚠️ **Note**: We have changed the `GET` to `POST` in this payload and added a `body`, that holds a string containing json.
 
     Your result should look something like this:
 
@@ -426,7 +414,7 @@ Replace your `Lambda.run` with the code above.
 
 As mentioned earlier, this tutorial assumes that you already have a script `package.sh` in the `scripts` folder of your repo.
 
-If you don't, now it's the time to revisit the [Build and Package section](/getting-started-with-swift-aws-lambda-runtime#step-5-build-your-code-for-the-aws-lambda-environment) of my [Getting started with Swift on AWS Lambda tutorial](/getting-started-with-swift-aws-lambda-runtime).
+If you don't, now it's the time to revisit the [Build and Package section](/getting-started-with-swift-aws-lambda-runtime#step-5-build-your-code-for-the-aws-lambda-environment) of our [Getting started with Swift on AWS Lambda tutorial](01-getting-started.md).
 
 This being settled, let's build the Lambda:
 
@@ -451,13 +439,13 @@ $ scripts/package.sh HelloWorld
 
 Now it's the time to create a new AWS Lambda function. Open the AWS Console and navigate to [Lambda](https://console.aws.amazon.com/lambda/home). Select "Functions" in the side navigation and click on "Create function" in the upper right corner. Make sure "Author from Scratch" is selected and give your function a name. I've choosen "HelloWorldAPI". Select the runtime "Provide your own bootstrap on Amazon Linux 2". Leave the rest of the settings as is, and hit the "Create function" button to proceed.
 
-![Create your function](/assets/img/posts/2020-07-27/function-create.png)
+![Create your function](assets/02-http-endpoint/function-create.png)
 
 Once the function has been created, your `lambda.zip` needs to be uploaded.
 
 You should see the section "Function Code" in the lower part of the screen. Click the dropdown "Actions" on the right side and select "Upload a zip file". Click on "Upload" and select your `lambda.zip`. Next click "Save".
 
-![Upload your lambda code](/assets/img/posts/2020-07-27/function-upload.png)
+![Upload your lambda code](assets/02-http-endpoint/function-upload.png)
 
 ### Step 8: Connect with an API Gateway
 
@@ -465,21 +453,21 @@ At last an AWS APIGateway must be created and connected to your Lambda.
 
 Navigate to [API Gateway](https://console.aws.amazon.com/apigateway/home) in the AWS Console. Select "APIs" in the side navigation and click on "Create API" in the upper right corner. Choose "HTTP API" as your API type and click its "Build" button. A "Create an API" Wizard will be opened.
 
-Click the "Add Integration" button and select "Lambda" from the dropdown. Next you'll need to select the Lambda, you've just created. Since mine is called "HelloWorldAPI", I can find it quite easily. Make sure `2.0` is selected as your Version. (The version number here must match your code's event types version number: `APIGateway.V2.Request`). Eventually enter a name for the API (mine is "HelloWorldAPI") and click "Next".
+Click the "Add Integration" button and select "Lambda" from the dropdown. Next you'll need to select the Lambda, you've just created. Since ours is called "HelloWorldAPI", We can find it quite easily. Make sure `2.0` is selected as your Version. (The version number here must match your code's event types version number: `APIGateway.V2.Request`). Eventually enter a name for the API (we call ours "HelloWorldAPI") and click "Next".
 
-![Create API and add integration](/assets/img/posts/2020-07-27/api-integration.png)
+![Create API and add integration](assets/02-http-endpoint/api-integration.png)
 
 In the step "Configure routes" you must connect the routes your API shall serve with your integration target (your Lambda). The magic keyword to catch all routes is `$default`. This will proxy all routes to your Lambda.
 
-![Configure routes for API Gateway](/assets/img/posts/2020-07-27/api-configure-routes.png)
+![Configure routes for API Gateway](assets/02-http-endpoint/api-configure-routes.png)
 
 In the step "Configure stages" step everything can remain as is. Click "Next" to continue.
 
-![Configure stages for API Gateway](/assets/img/posts/2020-07-27/api-stages.png)
+![Configure stages for API Gateway](assets/02-http-endpoint/api-stages.png)
 
 Finally all settings can be reviewed. Click on "Create" to proceed, which should forward you to your new API Gateway:
 
-![API Gateway overview](/assets/img/posts/2020-07-27/api-overview.png)
+![API Gateway overview](assets/02-http-endpoint/api-overview.png)
 
 The API Gateway's url can be seen in the column "Invoke URL" for the stage `$default`:
 
@@ -513,11 +501,9 @@ Hopefully you are now able to create a simple API yourself using [`swift-aws-lam
 - [AWS Serverless Application Model (AWS SAM)](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/what-is-sam.html)
 - [Serverless framework](https://www.serverless.com/open-source/)
 
-Further I want to shout out to some other great Swift on Lambda tutorials that can take you further:
+Further we want to shout out to some other great Swift on Lambda tutorials that can take you further:
 
 - [Sending SNS messages to Slack using EventLoopFutures](https://www.opticalaberration.com/2020/06/investigating-swift-aws-lambda-runtime.html) by [@o_aberration](https://twitter.com/o_aberration)
 - [SES Email forwarding using the community driven AWS-SDK-Swift](https://www.opticalaberration.com/2020/06/investigating-swift-aws-lambda-runtime-part2.html) by [@o_aberration](https://twitter.com/o_aberration)
 
-Feedback is highly welcome. I'm [@fabianfett](https://twitter.com/fabianfett) on twitter and you can reach me via mail at: [fabianfett@mac.com](mailto:fabianfett@mac.com)
-
-
+Feedback is highly welcome.
