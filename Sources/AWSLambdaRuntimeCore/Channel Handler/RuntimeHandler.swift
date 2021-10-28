@@ -144,14 +144,14 @@ final class RuntimeHandler<Writer: APIRequestWriter>: ChannelDuplexHandler {
             self.writer.writeRequest(.next, context: context)
             
         case .invokeHandler(let handler, let invocation, let bytes, let invocationCount):
-            let lambdaContext = Lambda.Context(
+            let lambdaContext = LambdaContext(
                 logger: self.logger,
                 eventLoop: context.eventLoop,
                 allocator: context.channel.allocator,
                 invocation: invocation,
                 invocationCount: invocationCount
             )
-            handler.handle(event: bytes, context: lambdaContext).hop(to: context.eventLoop).whenComplete {
+            handler.handle(bytes, context: lambdaContext).hop(to: context.eventLoop).whenComplete {
                 let action = self.state.invocationCompleted($0)
                 self.run(action: action, context: context)
             }

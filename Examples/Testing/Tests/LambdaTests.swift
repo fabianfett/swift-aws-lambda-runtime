@@ -2,7 +2,7 @@
 //
 // This source file is part of the SwiftAWSLambdaRuntime open source project
 //
-// Copyright (c) 2017-2020 Apple Inc. and the SwiftAWSLambdaRuntime project authors
+// Copyright (c) 2021 Apple Inc. and the SwiftAWSLambdaRuntime project authors
 // Licensed under Apache License v2.0
 //
 // See LICENSE.txt for license information
@@ -12,12 +12,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-import AWSLambdaRuntimeCore
-import struct Foundation.Date
+import AWSLambdaRuntime
+import AWSLambdaTesting
+@testable import MyLambda
+import XCTest
 
-extension LambdaContext {
-    var deadlineDate: Date {
-        let secondsSinceEpoch = Double(Int64(bitPattern: self.deadline.rawValue)) / -1_000_000_000
-        return Date(timeIntervalSince1970: secondsSinceEpoch)
+class LambdaTest: XCTestCase {
+    func testIt() throws {
+        let input = UUID().uuidString
+        let result = try Lambda.test(MyLambda.self, with: input)
+        XCTAssertEqual(result, String(input.reversed()))
     }
 }

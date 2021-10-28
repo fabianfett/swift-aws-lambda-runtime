@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if swift(>=5.5)
+#if swift(>=5.5) && canImport(_Concurrency)
 import AWSLambdaRuntime
 import AWSLambdaTesting
 import NIOCore
@@ -30,12 +30,12 @@ class LambdaTestingTests: XCTestCase {
         }
 
         struct MyLambda: LambdaHandler {
-            typealias In = Request
-            typealias Out = Response
+            typealias Event = Request
+            typealias Output = Response
 
             init(context: Lambda.InitializationContext) {}
 
-            func handle(event: Request, context: Lambda.Context) async throws -> Response {
+            func handle(_ event: Request, context: LambdaContext) async throws -> Response {
                 Response(message: "echo" + event.name)
             }
         }
@@ -54,12 +54,12 @@ class LambdaTestingTests: XCTestCase {
         }
 
         struct MyLambda: LambdaHandler {
-            typealias In = Request
-            typealias Out = Void
+            typealias Event = Request
+            typealias Output = Void
 
             init(context: Lambda.InitializationContext) {}
 
-            func handle(event: Request, context: Lambda.Context) async throws {
+            func handle(_ event: Request, context: LambdaContext) async throws {
                 LambdaTestingTests.VoidLambdaHandlerInvokeCount += 1
             }
         }
@@ -74,12 +74,12 @@ class LambdaTestingTests: XCTestCase {
         struct MyError: Error {}
 
         struct MyLambda: LambdaHandler {
-            typealias In = String
-            typealias Out = Void
+            typealias Event = String
+            typealias Output = Void
 
             init(context: Lambda.InitializationContext) {}
 
-            func handle(event: String, context: Lambda.Context) async throws {
+            func handle(_ event: String, context: LambdaContext) async throws {
                 throw MyError()
             }
         }
@@ -91,12 +91,12 @@ class LambdaTestingTests: XCTestCase {
 
     func testAsyncLongRunning() {
         struct MyLambda: LambdaHandler {
-            typealias In = String
-            typealias Out = String
+            typealias Event = String
+            typealias Output = String
 
             init(context: Lambda.InitializationContext) {}
 
-            func handle(event: String, context: Lambda.Context) async throws -> String {
+            func handle(_ event: String, context: LambdaContext) async throws -> String {
                 try await Task.sleep(nanoseconds: 500 * 1000 * 1000)
                 return event
             }

@@ -18,7 +18,6 @@ import Glibc
 import Darwin.C
 #endif
 
-import _NIOConcurrency
 import Backtrace
 import Logging
 import NIOCore
@@ -54,7 +53,7 @@ public enum Lambda {
         return String(cString: value)
     }
 
-    #if swift(>=5.5)
+    #if swift(>=5.5) && canImport(_Concurrency)
     // for testing and internal use
     @available(macOS 12, iOS 15, tvOS 15, watchOS 8, *)
     internal static func run<Handler: LambdaHandler>(configuration: Configuration = .init(), handlerType: Handler.Type) -> Result<Int, Error> {
@@ -77,16 +76,16 @@ public enum Lambda {
 
             var result: Result<Int, Error>!
             MultiThreadedEventLoopGroup.withCurrentThreadAsEventLoop { eventLoop in
-                let lifecycle = Lifecycle(eventLoop: eventLoop, logger: logger, configuration: configuration, factory: factory)
+                let runtime = LambdaRuntime(eventLoop: eventLoop, logger: logger, configuration: configuration, factory: factory)
                 #if DEBUG
                 let signalSource = trap(signal: configuration.lifecycle.stopSignal) { signal in
                     logger.info("intercepted signal: \(signal)")
-                    lifecycle.shutdown()
+                    _ = runtime.stop()
                 }
                 #endif
 
-                lifecycle.start().flatMap {
-                    lifecycle.shutdownFuture
+                runtime.start().flatMap {
+                    runtime.shutdownFuture
                 }.whenComplete { lifecycleResult in
                     #if DEBUG
                     signalSource.cancel()
@@ -96,7 +95,12 @@ public enum Lambda {
                             preconditionFailure("Failed to shutdown eventloop: \(error)")
                         }
                     }
-                    result = lifecycleResult
+                    switch lifecycleResult {
+                    case .success:
+                        result = .success(0)
+                    case .failure(let error):
+                        result = .failure(error)
+                    }
                 }
             }
 

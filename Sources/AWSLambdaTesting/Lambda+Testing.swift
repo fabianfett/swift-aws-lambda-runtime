@@ -13,18 +13,16 @@
 //===----------------------------------------------------------------------===//
 
 // This functionality is designed to help with Lambda unit testing with XCTest
-// #if filter required for release builds which do not support @testable import
-// @testable is used to access of internal functions
-// For exmaple:
+// For example:
 //
 // func test() {
 //     struct MyLambda: LambdaHandler {
-//         typealias In = String
-//         typealias Out = String
+//         typealias Event = String
+//         typealias Output = String
 //
 //         init(context: Lambda.InitializationContext) {}
 //
-//         func handle(event: String, context: Lambda.Context) async throws -> String {
+//         func handle(_ event: String, context: LambdaContext) async throws -> String {
 //             "echo" + event
 //         }
 //     }
@@ -35,8 +33,7 @@
 //     XCTAssertEqual(result, "echo" + input)
 // }
 
-#if swift(>=5.5)
-import _NIOConcurrency
+#if swift(>=5.5) && canImport(_Concurrency)
 import AWSLambdaRuntime
 import AWSLambdaRuntimeCore
 import Dispatch
@@ -66,16 +63,16 @@ extension Lambda {
 
     public static func test<Handler: LambdaHandler>(
         _ handlerType: Handler.Type,
-        with event: Handler.In,
+        with event: Handler.Event,
         using config: TestConfig = .init()
-    ) throws -> Handler.Out {
+    ) throws -> Handler.Output {
         let logger = Logger(label: "test")
         let eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
         defer {
             try! eventLoopGroup.syncShutdownGracefully()
         }
         let eventLoop = eventLoopGroup.next()
-        let context = Lambda.Context.__forTestsOnly(
+        let context = LambdaContext.__forTestsOnly(
             requestID: config.requestID,
             traceID: config.traceID,
             invokedFunctionARN: config.invokedFunctionARN,
@@ -96,7 +93,7 @@ extension Lambda {
         let handler = try promise.futureResult.wait()
 
         return try eventLoop.flatSubmit {
-            handler.handle(event: event, context: context)
+            handler.handle(event, context: context)
         }.wait()
     }
 }

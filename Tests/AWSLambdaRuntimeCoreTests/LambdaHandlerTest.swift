@@ -28,8 +28,8 @@ class LambdaHandlerTest: XCTestCase {
         defer { XCTAssertNoThrow(try server.stop().wait()) }
 
         struct TestBootstrapHandler: LambdaHandler {
-            typealias In = String
-            typealias Out = String
+            typealias Event = String
+            typealias Output = String
 
             var initialized = false
 
@@ -39,7 +39,7 @@ class LambdaHandlerTest: XCTestCase {
                 self.initialized = true
             }
 
-            func handle(event: String, context: Lambda.Context) async throws -> String {
+            func handle(_ event: String, context: LambdaContext) async throws -> String {
                 event
             }
         }
@@ -57,8 +57,8 @@ class LambdaHandlerTest: XCTestCase {
         defer { XCTAssertNoThrow(try server.stop().wait()) }
 
         struct TestBootstrapHandler: LambdaHandler {
-            typealias In = String
-            typealias Out = Void
+            typealias Event = String
+            typealias Output = Void
 
             var initialized = false
 
@@ -68,7 +68,7 @@ class LambdaHandlerTest: XCTestCase {
                 throw TestError("kaboom")
             }
 
-            func handle(event: String, context: Lambda.Context) async throws {
+            func handle(_ event: String, context: LambdaContext) async throws {
                 XCTFail("How can this be called if init failed")
             }
         }
@@ -76,7 +76,7 @@ class LambdaHandlerTest: XCTestCase {
         let maxTimes = Int.random(in: 10 ... 20)
         let configuration = Lambda.Configuration(lifecycle: .init(maxTimes: maxTimes))
         let result = Lambda.run(configuration: configuration, handlerType: TestBootstrapHandler.self)
-        assertLambdaLifecycleResult(result, shouldFailWithError: TestError("kaboom"))
+        assertLambdaRuntimeResult(result, shouldFailWithError: TestError("kaboom"))
     }
 
     @available(macOS 12, iOS 15, tvOS 15, watchOS 8, *)
@@ -86,12 +86,12 @@ class LambdaHandlerTest: XCTestCase {
         defer { XCTAssertNoThrow(try server.stop().wait()) }
 
         struct Handler: LambdaHandler {
-            typealias In = String
-            typealias Out = String
+            typealias Event = String
+            typealias Output = String
 
             init(context: Lambda.InitializationContext) {}
 
-            func handle(event: String, context: Lambda.Context) async throws -> String {
+            func handle(_ event: String, context: LambdaContext) async throws -> String {
                 event
             }
         }
@@ -109,12 +109,12 @@ class LambdaHandlerTest: XCTestCase {
         defer { XCTAssertNoThrow(try server.stop().wait()) }
 
         struct Handler: LambdaHandler {
-            typealias In = String
-            typealias Out = Void
+            typealias Event = String
+            typealias Output = Void
 
             init(context: Lambda.InitializationContext) {}
 
-            func handle(event: String, context: Lambda.Context) async throws {}
+            func handle(_ event: String, context: LambdaContext) async throws {}
         }
 
         let maxTimes = Int.random(in: 1 ... 10)
@@ -130,12 +130,12 @@ class LambdaHandlerTest: XCTestCase {
         defer { XCTAssertNoThrow(try server.stop().wait()) }
 
         struct Handler: LambdaHandler {
-            typealias In = String
-            typealias Out = String
+            typealias Event = String
+            typealias Output = String
 
             init(context: Lambda.InitializationContext) {}
 
-            func handle(event: String, context: Lambda.Context) async throws -> String {
+            func handle(_ event: String, context: LambdaContext) async throws -> String {
                 throw TestError("boom")
             }
         }
@@ -155,10 +155,10 @@ class LambdaHandlerTest: XCTestCase {
         defer { XCTAssertNoThrow(try server.stop().wait()) }
 
         struct Handler: EventLoopLambdaHandler {
-            typealias In = String
-            typealias Out = String
+            typealias Event = String
+            typealias Output = String
 
-            func handle(event: String, context: Lambda.Context) -> EventLoopFuture<String> {
+            func handle(_ event: String, context: LambdaContext) -> EventLoopFuture<String> {
                 context.eventLoop.makeSucceededFuture(event)
             }
         }
@@ -177,10 +177,10 @@ class LambdaHandlerTest: XCTestCase {
         defer { XCTAssertNoThrow(try server.stop().wait()) }
 
         struct Handler: EventLoopLambdaHandler {
-            typealias In = String
-            typealias Out = Void
+            typealias Event = String
+            typealias Output = Void
 
-            func handle(event: String, context: Lambda.Context) -> EventLoopFuture<Void> {
+            func handle(_ event: String, context: LambdaContext) -> EventLoopFuture<Void> {
                 context.eventLoop.makeSucceededFuture(())
             }
         }
@@ -199,10 +199,10 @@ class LambdaHandlerTest: XCTestCase {
         defer { XCTAssertNoThrow(try server.stop().wait()) }
 
         struct Handler: EventLoopLambdaHandler {
-            typealias In = String
-            typealias Out = String
+            typealias Event = String
+            typealias Output = String
 
-            func handle(event: String, context: Lambda.Context) -> EventLoopFuture<String> {
+            func handle(_ event: String, context: LambdaContext) -> EventLoopFuture<String> {
                 context.eventLoop.makeFailedFuture(TestError("boom"))
             }
         }
@@ -212,7 +212,7 @@ class LambdaHandlerTest: XCTestCase {
         let result = Lambda.run(configuration: configuration, factory: { context in
             context.eventLoop.makeSucceededFuture(Handler())
         })
-        assertLambdaLifecycleResult(result, shoudHaveRun: maxTimes)
+        assertLambdaRuntimeResult(result, shoudHaveRun: maxTimes)
     }
 
     func testEventLoopBootstrapFailure() {
@@ -223,7 +223,7 @@ class LambdaHandlerTest: XCTestCase {
         let result = Lambda.run(configuration: .init(), factory: { context in
             context.eventLoop.makeFailedFuture(TestError("kaboom"))
         })
-        assertLambdaLifecycleResult(result, shouldFailWithError: TestError("kaboom"))
+        assertLambdaRuntimeResult(result, shouldFailWithError: TestError("kaboom"))
     }
 }
 

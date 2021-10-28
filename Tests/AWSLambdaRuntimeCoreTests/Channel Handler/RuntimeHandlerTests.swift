@@ -20,10 +20,10 @@ import XCTest
 
 final class RuntimeHandlerTests: XCTestCase {
     struct EchoHandler: EventLoopLambdaHandler {
-        typealias In = String
-        typealias Out = String
+        typealias Event = String
+        typealias Output = String
 
-        func handle(event: String, context: Lambda.Context) -> EventLoopFuture<String> {
+        func handle(_ event: String, context: LambdaContext) -> EventLoopFuture<String> {
             context.eventLoop.makeSucceededFuture(event)
         }
     }

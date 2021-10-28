@@ -38,12 +38,12 @@ class CodableLambdaTest: XCTestCase {
         var outputBuffer: ByteBuffer?
 
         struct Handler: EventLoopLambdaHandler {
-            typealias In = Request
-            typealias Out = Void
+            typealias Event = Request
+            typealias Output = Void
 
             let expected: Request
 
-            func handle(event: Request, context: Lambda.Context) -> EventLoopFuture<Void> {
+            func handle(_ event: Request, context: LambdaContext) -> EventLoopFuture<Void> {
                 XCTAssertEqual(event, self.expected)
                 return context.eventLoop.makeSucceededVoidFuture()
             }
@@ -52,7 +52,7 @@ class CodableLambdaTest: XCTestCase {
         let handler = Handler(expected: request)
 
         XCTAssertNoThrow(inputBuffer = try JSONEncoder().encode(request, using: self.allocator))
-        XCTAssertNoThrow(outputBuffer = try handler.handle(event: XCTUnwrap(inputBuffer), context: self.newContext()).wait())
+        XCTAssertNoThrow(outputBuffer = try handler.handle(XCTUnwrap(inputBuffer), context: self.newContext()).wait())
         XCTAssertNil(outputBuffer)
     }
 
@@ -63,12 +63,12 @@ class CodableLambdaTest: XCTestCase {
         var response: Response?
 
         struct Handler: EventLoopLambdaHandler {
-            typealias In = Request
-            typealias Out = Response
+            typealias Event = Request
+            typealias Output = Response
 
             let expected: Request
 
-            func handle(event: Request, context: Lambda.Context) -> EventLoopFuture<Response> {
+            func handle(_ event: Request, context: LambdaContext) -> EventLoopFuture<Response> {
                 XCTAssertEqual(event, self.expected)
                 return context.eventLoop.makeSucceededFuture(Response(requestId: event.requestId))
             }
@@ -77,23 +77,23 @@ class CodableLambdaTest: XCTestCase {
         let handler = Handler(expected: request)
 
         XCTAssertNoThrow(inputBuffer = try JSONEncoder().encode(request, using: self.allocator))
-        XCTAssertNoThrow(outputBuffer = try handler.handle(event: XCTUnwrap(inputBuffer), context: self.newContext()).wait())
+        XCTAssertNoThrow(outputBuffer = try handler.handle(XCTUnwrap(inputBuffer), context: self.newContext()).wait())
         XCTAssertNoThrow(response = try JSONDecoder().decode(Response.self, from: XCTUnwrap(outputBuffer)))
         XCTAssertEqual(response?.requestId, request.requestId)
     }
 
-    #if swift(>=5.5)
+    #if swift(>=5.5) && canImport(_Concurrency)
     @available(macOS 12, iOS 15, tvOS 15, watchOS 8, *)
     func testCodableVoidHandler() {
         struct Handler: LambdaHandler {
-            typealias In = Request
-            typealias Out = Void
+            typealias Event = Request
+            typealias Output = Void
 
             var expected: Request?
 
             init(context: Lambda.InitializationContext) async throws {}
 
-            func handle(event: Request, context: Lambda.Context) async throws {
+            func handle(_ event: Request, context: LambdaContext) async throws {
                 XCTAssertEqual(event, self.expected)
             }
         }
@@ -107,7 +107,7 @@ class CodableLambdaTest: XCTestCase {
             handler.expected = request
 
             XCTAssertNoThrow(inputBuffer = try JSONEncoder().encode(request, using: self.allocator))
-            XCTAssertNoThrow(outputBuffer = try handler.handle(event: XCTUnwrap(inputBuffer), context: self.newContext()).wait())
+            XCTAssertNoThrow(outputBuffer = try handler.handle(XCTUnwrap(inputBuffer), context: self.newContext()).wait())
             XCTAssertNil(outputBuffer)
         }
     }
@@ -115,14 +115,14 @@ class CodableLambdaTest: XCTestCase {
     @available(macOS 12, iOS 15, tvOS 15, watchOS 8, *)
     func testCodableHandler() {
         struct Handler: LambdaHandler {
-            typealias In = Request
-            typealias Out = Response
+            typealias Event = Request
+            typealias Output = Response
 
             var expected: Request?
 
             init(context: Lambda.InitializationContext) async throws {}
 
-            func handle(event: Request, context: Lambda.Context) async throws -> Response {
+            func handle(_ event: Request, context: LambdaContext) async throws -> Response {
                 XCTAssertEqual(event, self.expected)
                 return Response(requestId: event.requestId)
             }
@@ -138,31 +138,34 @@ class CodableLambdaTest: XCTestCase {
             handler.expected = request
 
             XCTAssertNoThrow(inputBuffer = try JSONEncoder().encode(request, using: self.allocator))
-            XCTAssertNoThrow(outputBuffer = try handler.handle(event: XCTUnwrap(inputBuffer), context: self.newContext()).wait())
+            XCTAssertNoThrow(outputBuffer = try handler.handle(XCTUnwrap(inputBuffer), context: self.newContext()).wait())
             XCTAssertNoThrow(response = try JSONDecoder().decode(Response.self, from: XCTUnwrap(outputBuffer)))
             XCTAssertEqual(response?.requestId, request.requestId)
         }
     }
     #endif
 
-    // convencience method
-    func newContext() -> Lambda.Context {
-        Lambda.Context(requestID: UUID().uuidString,
-                       traceID: "abc123",
-                       invokedFunctionARN: "aws:arn:",
-                       deadline: .now() + .seconds(3),
-                       cognitoIdentity: nil,
-                       clientContext: nil,
-                       logger: Logger(label: "test"),
-                       invocationCount: 0,
-                       eventLoop: self.eventLoopGroup.next(),
-                       allocator: ByteBufferAllocator())
+    // convenience method
+    func newContext() -> LambdaContext {
+        LambdaContext(
+            requestID: UUID().uuidString,
+            traceID: "abc123",
+            invokedFunctionARN: "aws:arn:",
+            deadline: .now() + .seconds(3),
+            cognitoIdentity: nil,
+            clientContext: nil,
+            logger: Logger(label: "test"),
+            eventLoop: self.eventLoopGroup.next(),
+            allocator: ByteBufferAllocator()
+        )
     }
 
     func newInitContext() -> Lambda.InitializationContext {
-        Lambda.InitializationContext(logger: Logger(label: "test"),
-                                     eventLoop: self.eventLoopGroup.next(),
-                                     allocator: ByteBufferAllocator())
+        Lambda.InitializationContext(
+            logger: Logger(label: "test"),
+            eventLoop: self.eventLoopGroup.next(),
+            allocator: ByteBufferAllocator()
+        )
     }
 }
 
@@ -180,7 +183,7 @@ private struct Response: Codable, Equatable {
     }
 }
 
-#if swift(>=5.5)
+#if swift(>=5.5) && canImport(_Concurrency)
 // NOTE: workaround until we have async test support on linux
 //         https://github.com/apple/swift-corelibs-xctest/pull/326
 extension XCTestCase {
