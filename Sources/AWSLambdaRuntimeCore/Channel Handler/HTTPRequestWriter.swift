@@ -13,8 +13,11 @@
 //===----------------------------------------------------------------------===//
 
 import NIOCore
+import NIOHTTP1
 
 struct HTTPRequestWriter: APIRequestWriter {
+    typealias OutboundOut = ByteBuffer
+    
     private var host: String
     private var byteBuffer: ByteBuffer!
     
@@ -31,7 +34,7 @@ struct HTTPRequestWriter: APIRequestWriter {
             self.byteBuffer.writeHostHeader(host: self.host)
             self.byteBuffer.writeStaticString(.userAgentHeader)
             self.byteBuffer.writeStaticString(.CRLF) // end of head
-            context.write(NIOAny(self.byteBuffer), promise: nil)
+            context.write(self.wrapOutboundOut(self.byteBuffer), promise: nil)
             context.flush()
 
         case .invocationResponse(let requestID, let payload):
@@ -41,9 +44,9 @@ struct HTTPRequestWriter: APIRequestWriter {
             self.byteBuffer.writeHostHeader(host: self.host)
             self.byteBuffer.writeStaticString(.userAgentHeader)
             self.byteBuffer.writeStaticString(.CRLF) // end of head
-            context.write(NIOAny(self.byteBuffer), promise: nil)
+            context.write(self.wrapOutboundOut(self.byteBuffer), promise: nil)
             if contentLength > 0 {
-                context.write(NIOAny(payload!), promise: nil)
+                context.write(self.wrapOutboundOut(payload!), promise: nil)
             }
             context.flush()
 
@@ -56,7 +59,7 @@ struct HTTPRequestWriter: APIRequestWriter {
             self.byteBuffer.writeStaticString(.unhandledErrorHeader)
             self.byteBuffer.writeStaticString(.CRLF) // end of head
             self.byteBuffer.writeBytes(payload)
-            context.write(NIOAny(self.byteBuffer), promise: nil)
+            context.write(self.wrapOutboundOut(self.byteBuffer), promise: nil)
             context.flush()
 
         case .initializationError(let errorMessage):
@@ -68,7 +71,7 @@ struct HTTPRequestWriter: APIRequestWriter {
             self.byteBuffer.writeStaticString(.unhandledErrorHeader)
             self.byteBuffer.writeStaticString(.CRLF) // end of head
             self.byteBuffer.writeBytes(payload)
-            context.write(NIOAny(self.byteBuffer), promise: nil)
+            context.write(self.wrapOutboundOut(self.byteBuffer), promise: nil)
             context.flush()
         }
     }
@@ -123,3 +126,91 @@ extension StaticString {
         "POST /2018-06-01/runtime/init/error HTTP/1.1\r\n"
 }
 
+struct HTTPRequestPartWriter: APIRequestWriter {
+    typealias OutboundOut = HTTPClientRequestPart
+    
+    private var host: String
+    
+    init(host: String) {
+        self.host = host
+    }
+    
+    mutating func writeRequest(_ request: APIRequest, context: ChannelHandlerContext) {
+        switch request {
+        case .next:
+            let head = HTTPRequestHead(
+                version: .http1_1,
+                method: .GET,
+                uri: "/2018-06-01/runtime/invocation/next",
+                headers: [
+                    "host": self.host,
+                    "user-agent": "Swift-Lambda/Unknown"
+                ]
+            )
+            context.write(self.wrapOutboundOut(.head(head)), promise: nil)
+            context.write(self.wrapOutboundOut(.end(nil)), promise: nil)
+            context.flush()
+
+        case .invocationResponse(let requestID, let payload):
+            let head = HTTPRequestHead(
+                version: .http1_1,
+                method: .POST,
+                uri: "/2018-06-01/runtime/invocation/\(requestID)/response",
+                headers: [
+                    "content-length": "\(payload?.readableBytes ?? 0)",
+                    "host": self.host,
+                    "user-agent": "Swift-Lambda/Unknown"
+                ]
+            )
+            context.write(self.wrapOutboundOut(.head(head)), promise: nil)
+            if let payload = payload {
+                context.write(self.wrapOutboundOut(.body(.byteBuffer(payload))), promise: nil)
+            }
+            context.write(self.wrapOutboundOut(.end(nil)), promise: nil)
+            context.flush()
+
+        case .invocationError(let requestID, let errorMessage):
+            let payload = errorMessage.toJSONBytes()
+            let head = HTTPRequestHead(
+                version: .http1_1,
+                method: .POST,
+                uri: "/2018-06-01/runtime/invocation/\(requestID)/error",
+                headers: [
+                    "content-length": "\(payload.count)",
+                    "host": self.host,
+                    "user-agent": "Swift-Lambda/Unknown",
+                    "lambda-runtime-function-error-type": "Unhandled",
+                ]
+            )
+            context.write(self.wrapOutboundOut(.head(head)), promise: nil)
+            let bodyBuffer = context.channel.allocator.buffer(bytes: payload)
+            context.write(self.wrapOutboundOut(.body(.byteBuffer(bodyBuffer))), promise: nil)
+            context.write(self.wrapOutboundOut(.end(nil)), promise: nil)
+            context.flush()
+
+        case .initializationError(let errorMessage):
+            let payload = errorMessage.toJSONBytes()
+            let head = HTTPRequestHead(
+                version: .http1_1,
+                method: .POST,
+                uri: "/2018-06-01/runtime/init/error",
+                headers: [
+                    "content-length": "\(payload.count)",
+                    "host": self.host,
+                    "user-agent": "Swift-Lambda/Unknown",
+                    "lambda-runtime-function-error-type": "Unhandled",
+                ]
+            )
+            context.write(self.wrapOutboundOut(.head(head)), promise: nil)
+            let bodyBuffer = context.channel.allocator.buffer(bytes: payload)
+            context.write(self.wrapOutboundOut(.body(.byteBuffer(bodyBuffer))), promise: nil)
+            context.write(self.wrapOutboundOut(.end(nil)), promise: nil)
+            context.flush()
+        }
+    }
+    
+    mutating func writerAdded(context: ChannelHandlerContext) {}
+    
+    mutating func writerRemoved(context: ChannelHandlerContext) {}
+
+}

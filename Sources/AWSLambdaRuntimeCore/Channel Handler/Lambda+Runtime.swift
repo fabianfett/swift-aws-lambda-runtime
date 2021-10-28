@@ -13,7 +13,9 @@
 //===----------------------------------------------------------------------===//
 
 import Logging
-import NIO
+import NIOCore
+import NIOPosix
+import NIOHTTP1
 
 extension Lambda {
     public class Runtime {
@@ -79,7 +81,7 @@ extension Lambda {
             }
 
             let bootstrap = ClientBootstrap(group: self.eventLoop).channelInitializer { channel in
-                do {
+                do {                    
                     try channel.pipeline.syncOperations.addHTTPClientHandlers()
                     // Lambda quotas... An invocation payload is maximal 6MB in size:
                     //   https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html
@@ -89,7 +91,7 @@ extension Lambda {
                         RuntimeHandler(
                             configuration: self.configuration,
                             logger: self.logger,
-                            writer: HTTPRequestWriter(host: host),
+                            writer: HTTPRequestPartWriter(host: host),
                             factory: factory
                         )
                     )

@@ -33,6 +33,7 @@ final class RuntimeHandlerTests: XCTestCase {
         let handler = RuntimeHandler(
             configuration: .init(lifecycle: .init(maxTimes: 2)),
             logger: logger,
+            writer: HTTPRequestPartWriter(host: "localhost"),
             factory: { $0.eventLoop.makeSucceededFuture(EchoHandler()) }
         )
         let embedded = EmbeddedChannel(handler: handler)
@@ -71,8 +72,8 @@ final class RuntimeHandlerTests: XCTestCase {
     }
 }
 
-extension RuntimeHandler.StateMachine.Action: Equatable {
-    public static func == (lhs: RuntimeHandler.StateMachine.Action, rhs: RuntimeHandler.StateMachine.Action) -> Bool {
+extension RuntimeStateMachine.Action: Equatable {
+    public static func == (lhs: RuntimeStateMachine.Action, rhs: RuntimeStateMachine.Action) -> Bool {
         switch (lhs, rhs) {
         case (.connect(to: let lhsSocket, let lhsPromise, _), .connect(to: let rhsSocket, let rhsPromise, _)):
             guard lhsSocket == rhsSocket else {

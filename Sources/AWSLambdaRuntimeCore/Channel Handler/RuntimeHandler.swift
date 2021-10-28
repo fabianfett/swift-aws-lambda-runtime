@@ -14,8 +14,10 @@
 
 import Logging
 import NIO
+import NIOHTTP1
 
 protocol APIRequestWriter {
+    associatedtype OutboundOut
 
     mutating func writeRequest(_ request: APIRequest, context: ChannelHandlerContext)
     
@@ -24,21 +26,22 @@ protocol APIRequestWriter {
     mutating func writerRemoved(context: ChannelHandlerContext)
 }
 
-final class RuntimeHandler<Writer: APIRequestWriter>: ChannelDuplexHandler {
-    typealias InboundIn = ByteBuffer
-    typealias OutboundIn = Never
-    typealias OutboundOut = ByteBuffer
-
-    var state: StateMachine {
-        didSet {
-            self.logger.trace("State changed", metadata: [
-                "state": "\(self.state)",
-            ])
-        }
+/// Default implementations for `_EmittingChannelHandler`.
+extension APIRequestWriter {
+    func wrapOutboundOut(_ value: OutboundOut) -> NIOAny {
+        NIOAny(value)
     }
+}
+
+final class RuntimeHandler<Writer: APIRequestWriter>: ChannelDuplexHandler {
+    typealias InboundIn = NIOHTTPClientResponseFull
+    typealias OutboundIn = Never
+    typealias OutboundOut = Writer.OutboundOut
+
+    private var state: RuntimeStateMachine
     
     private var writer: Writer
-    let logger: Logger
+    private let logger: Logger
 
     init(
         configuration: Lambda.Configuration,
@@ -47,13 +50,10 @@ final class RuntimeHandler<Writer: APIRequestWriter>: ChannelDuplexHandler {
         factory: @escaping (Lambda.InitializationContext) -> EventLoopFuture<ByteBufferLambdaHandler>
     ) {
         self.logger = logger
-        let maxTimes = configuration.lifecycle.maxTimes
+        
         self.writer = writer
-        self.state = StateMachine(maxTimes: maxTimes, factory: factory)
-        
-
-
-        
+        let maxTimes = configuration.lifecycle.maxTimes
+        self.state = RuntimeStateMachine(maxTimes: maxTimes, factory: factory)
     }
 
     func handlerAdded(context: ChannelHandlerContext) {
@@ -83,6 +83,18 @@ final class RuntimeHandler<Writer: APIRequestWriter>: ChannelDuplexHandler {
         let action = self.state.channelInactive()
         self.run(action: action, context: context)
     }
+    
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        let httpResponse = unwrapInboundIn(data)
+
+        do {
+            let response = try self.parseResponse(httpResponse)
+            self.handleResponse(response, context: context)
+        } catch {
+            let action = self.state.errorHappened(error)
+            self.run(action: action, context: context)
+        }
+    }
 
     func close(context: ChannelHandlerContext, mode: CloseMode, promise: EventLoopPromise<Void>?) {
         self.logger.trace("Outbound close channel received")
@@ -94,8 +106,10 @@ final class RuntimeHandler<Writer: APIRequestWriter>: ChannelDuplexHandler {
         let action = self.state.close()
         self.run(action: action, context: context)
     }
-
-    func run(action: StateMachine.Action, context: ChannelHandlerContext) {
+    
+    // MARK: - Private Methods -
+    
+    private func run(action: RuntimeStateMachine.Action, context: ChannelHandlerContext) {
         switch action {
         case .connect(to: let address, let promise, andInitializeHandler: let factory):
             let lambdaContext = Lambda.InitializationContext(
@@ -167,18 +181,6 @@ final class RuntimeHandler<Writer: APIRequestWriter>: ChannelDuplexHandler {
         }
     }
     
-    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        let httpResponse = unwrapInboundIn(data)
-
-        do {
-            let response = try self.parseResponse(httpResponse)
-            self.readResponse(response, context: context)
-        } catch {
-            let action = self.state.errorHappened(error)
-            self.run(action: action, context: context)
-        }
-    }
-    
     private func parseResponse(_ httpResponse: NIOHTTPClientResponseFull) throws -> APIResponse {
         switch httpResponse.head.status {
         case .ok:
@@ -229,7 +231,7 @@ final class RuntimeHandler<Writer: APIRequestWriter>: ChannelDuplexHandler {
         }
     }
     
-    func readResponse(_ response: APIResponse, context: ChannelHandlerContext) {
+    private func handleResponse(_ response: APIResponse, context: ChannelHandlerContext) {
         self.logger.trace("Channel read", metadata: ["message": "\(response)"])
         
         switch response {

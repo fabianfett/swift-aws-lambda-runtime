@@ -24,7 +24,7 @@ final class RuntimeHandler_StateMachineTests: XCTestCase {
         let embedded = EmbeddedChannel()
         let logger = Logger(label: "Test")
         let factory: Lambda.HandlerFactory = { $0.eventLoop.makeSucceededFuture(EchoHandler()) }
-        var state = RuntimeHandler.StateMachine(maxTimes: 3, factory: factory)
+        var state = RuntimeStateMachine(maxTimes: 3, factory: factory)
         let socket = try! SocketAddress(ipAddress: "127.0.0.1", port: 7000)
 
         // --- startup
@@ -60,7 +60,7 @@ final class RuntimeHandler_StateMachineTests: XCTestCase {
     func testStateMachineStartupFailure() {
         let error = EchoError("Boom")
         let factory: Lambda.HandlerFactory = { $0.eventLoop.makeFailedFuture(error) }
-        var state = RuntimeHandler.StateMachine(maxTimes: 3, factory: factory)
+        var state = RuntimeStateMachine(maxTimes: 3, factory: factory)
         let socket = try! SocketAddress(ipAddress: "127.0.0.1", port: 7000)
 
         // --- startup
