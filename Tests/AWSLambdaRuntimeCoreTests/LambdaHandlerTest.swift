@@ -17,8 +17,7 @@ import NIOCore
 import XCTest
 
 class LambdaHandlerTest: XCTestCase {
-    #if compiler(>=5.5)
-
+    #if swift(>=5.5) && canImport(_Concurrency)
     // MARK: - LambdaHandler
 
     @available(macOS 12, iOS 15, tvOS 15, watchOS 8, *)
@@ -212,7 +211,7 @@ class LambdaHandlerTest: XCTestCase {
         let result = Lambda.run(configuration: configuration, factory: { context in
             context.eventLoop.makeSucceededFuture(Handler())
         })
-        assertLambdaRuntimeResult(result, shoudHaveRun: maxTimes)
+        XCTAssertEqual(server.requestCycles, maxTimes)
     }
 
     func testEventLoopBootstrapFailure() {
