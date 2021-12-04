@@ -188,7 +188,7 @@ extension XRayTraceID: CustomStringConvertible {
 }
 
 // MARK: - XRay.SegmentID -
-extension XRay {
+extension XRayTraceID {
     struct SegmentID: RawRepresentable, Equatable {
         typealias RawValue = UInt64
 
@@ -206,8 +206,8 @@ extension XRay {
             self = try Self.fromString(string)
         }
 
-        private static func fromString<S: StringProtocol>(_ string: S) throws -> XRay.SegmentID {
-            let result = try string.utf8.withContiguousStorageIfAvailable { (trace) -> XRay.SegmentID in
+        private static func fromString<S: StringProtocol>(_ string: S) throws -> XRayTraceID.SegmentID {
+            let result = try string.utf8.withContiguousStorageIfAvailable { (trace) -> XRayTraceID.SegmentID in
                 guard trace.count == 16 else { // invalid length
                     throw XRay.Error.segmentIDHasInvalidLength
                 }
@@ -217,7 +217,7 @@ extension XRay {
                     XRayTraceID.asciiHexToBytes(ascii: trace[0 ..< 16], target: ptr)
                 }
 
-                return XRay.SegmentID(rawValue: _segmentID)
+                return XRayTraceID.SegmentID(rawValue: _segmentID)
             }
 
             guard let r = result else {
@@ -263,14 +263,14 @@ extension XRay {
     }
 }
 
-extension XRay.SegmentID: CustomStringConvertible {
+extension XRayTraceID.SegmentID: CustomStringConvertible {
     var description: String {
         self.stringValue
     }
 }
 
 // MARK: - SampleDecision -
-extension XRay {
+extension XRayTraceID {
     internal enum SampleDecision {
         case sample // 1
         case reject // 0
