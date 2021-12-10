@@ -25,20 +25,35 @@ enum XRay {
 
 // MARK: - XRay.TraceID -
 struct XRayTraceID {
-    typealias Identifier = (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8)
+    typealias _Identifier = (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8)
 
     let version: UInt8
     let timestamp: UInt32
-    let identifier: Identifier
+    let identifier: _Identifier
+}
+
+extension XRayTraceID {
+    
+    enum SamplingDecission {
+        case sample
+        case ignore
+        case unknown
+    }
+    
+    struct ParentID {
+        typealias _Parent = (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8)
+        
+    }
+    
 }
 
 extension XRayTraceID {
     init() {
         self.version = 1
         // The time of the original request, in Unix epoch time, in 8 hexadecimal digits.
-        self.timestamp = UInt32(DispatchWallTime.now().millisSinceEpoch / 1000)
+        self.timestamp = UInt32(DispatchWallTime.now().secondsSinceEpoch)
 
-        var _identifier: Identifier = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        var _identifier: _Identifier = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
         withUnsafeMutableBytes(of: &_identifier) { ptr in
             ptr.storeBytes(of: XRayTraceID.generator.next(), toByteOffset: 0, as: UInt64.self)
             ptr.storeBytes(of: XRayTraceID.generator.next(upperBound: UInt32.max), toByteOffset: 8, as: UInt32.self)
@@ -67,7 +82,7 @@ extension XRayTraceID {
 
             let timestamp: UInt32 = Self.hexNumberToUInt32(ascii: trace[2 ..< 10])
 
-            var identifier: Identifier = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+            var identifier: _Identifier = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
             withUnsafeMutableBytes(of: &identifier) { ptr in
                 XRayTraceID.asciiHexToBytes(ascii: trace[11 ..< 35], target: ptr)
             }
