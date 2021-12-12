@@ -25,19 +25,20 @@ enum XRay {
 
 // MARK: - XRay.TraceID -
 struct XRayTraceID {
-    typealias _Identifier = (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8)
-
-    let version: UInt8
-    let timestamp: UInt32
-    let identifier: _Identifier
+    
+    let root: Root
+    let parentID: ParentID?
+    let samplingDecission: SamplingDecission?
+    
 }
 
 extension XRayTraceID {
-    
-    enum SamplingDecission {
-        case sample
-        case ignore
-        case unknown
+    struct Root {
+        typealias _Identifier = (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8)
+
+        let version: UInt8
+        let timestamp: UInt32
+        let identifier: _Identifier
     }
     
     struct ParentID {
@@ -45,9 +46,14 @@ extension XRayTraceID {
         
     }
     
+    enum SamplingDecission {
+        case sample
+        case ignore
+        case unknown
+    }
 }
 
-extension XRayTraceID {
+extension XRayTraceID.Root {
     init() {
         self.version = 1
         // The time of the original request, in Unix epoch time, in 8 hexadecimal digits.
@@ -66,8 +72,8 @@ extension XRayTraceID {
         self = try Self.fromString(trace)
     }
 
-    private static func fromString<S: StringProtocol>(_ string: S) throws -> XRayTraceID {
-        let result = try string.utf8.withContiguousStorageIfAvailable { (trace) -> XRayTraceID in
+    private static func fromString<S: StringProtocol>(_ string: S) throws -> XRayTraceID.Root {
+        let result = try string.utf8.withContiguousStorageIfAvailable { (trace) -> XRayTraceID.Root in
             guard trace.count == 35 else { // invalid length
                 throw XRay.Error.traceIDHasInvalidLength
             }
@@ -87,7 +93,7 @@ extension XRayTraceID {
                 XRayTraceID.asciiHexToBytes(ascii: trace[11 ..< 35], target: ptr)
             }
 
-            return XRayTraceID(version: 1, timestamp: timestamp, identifier: identifier)
+            return XRayTraceID.Root(version: 1, timestamp: timestamp, identifier: identifier)
         }
 
         guard let r = result else {
@@ -125,8 +131,8 @@ extension XRayTraceID {
     }
 }
 
-extension XRayTraceID: Equatable {
-    static func == (lhs: XRayTraceID, rhs: XRayTraceID) -> Bool {
+extension XRayTraceID.Root: Equatable {
+    static func == (lhs: XRayTraceID.Root, rhs: XRayTraceID.Root) -> Bool {
         guard lhs.version == rhs.version else {
             return false
         }
@@ -150,7 +156,7 @@ extension XRayTraceID: Equatable {
     }
 }
 
-extension XRayTraceID: CustomStringConvertible {
+extension XRayTraceID.Root: CustomStringConvertible {
     private typealias FixedSizeStringArray = (UInt64, UInt64, UInt64, UInt64, UInt8, UInt8, UInt8)
 
     var description: String {
