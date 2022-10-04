@@ -32,8 +32,8 @@ extension EventLoopLambdaHandler where Event: Decodable {
 /// Implementation of  `Output` to `ByteBuffer` encoding.
 extension EventLoopLambdaHandler where Output: Encodable {
     @inlinable
-    public func encode(allocator: ByteBufferAllocator, value: Output) throws -> ByteBuffer? {
-        try self.encoder.encode(value, using: allocator)
+    public func encode(value: Output, into buffer: inout ByteBuffer) throws {
+        try self.encoder.encode(value, into: &buffer)
     }
 }
 
@@ -58,7 +58,7 @@ public protocol LambdaCodableDecoder {
 }
 
 public protocol LambdaCodableEncoder {
-    func encode<T: Encodable>(_ value: T, using allocator: ByteBufferAllocator) throws -> ByteBuffer
+    func encode<T: Encodable>(_ value: T, into buffer: inout ByteBuffer) throws
 }
 
 extension Lambda {
@@ -68,11 +68,4 @@ extension Lambda {
 
 extension JSONDecoder: LambdaCodableDecoder {}
 
-extension JSONEncoder: LambdaCodableEncoder {
-    public func encode<T>(_ value: T, using allocator: ByteBufferAllocator) throws -> ByteBuffer where T: Encodable {
-        // nio will resize the buffer if necessary
-        var buffer = allocator.buffer(capacity: 1024)
-        try self.encode(value, into: &buffer)
-        return buffer
-    }
-}
+extension JSONEncoder: LambdaCodableEncoder {}
