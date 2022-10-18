@@ -203,6 +203,7 @@ public enum LambdaRuntimeFactory {
     ///     - handlerType: The ``SimpleLambdaHandler`` type the `LambdaRuntime` shall create and manage.
     ///     - eventLoop: An `EventLoop` to run the Lambda on.
     ///     - logger: A `Logger` to log the Lambda events.
+    @inlinable
     public static func makeRuntime<H: SimpleLambdaHandler>(_ handlerType: H.Type, eventLoop: any EventLoop, logger: Logger) -> LambdaRuntime<some ByteBufferLambdaHandler> {
         LambdaRuntime<CodableSimpleLambdaHandler<H>>(CodableSimpleLambdaHandler<H>.self, eventLoop: eventLoop, logger: logger)
     }
@@ -213,6 +214,7 @@ public enum LambdaRuntimeFactory {
     ///     - handlerType: The ``LambdaHandler`` type the `LambdaRuntime` shall create and manage.
     ///     - eventLoop: An `EventLoop` to run the Lambda on.
     ///     - logger: A `Logger` to log the Lambda events.
+    @inlinable
     public static func makeRuntime<H: LambdaHandler>(_ handlerType: H.Type, eventLoop: any EventLoop, logger: Logger) -> LambdaRuntime<some ByteBufferLambdaHandler> {
         LambdaRuntime<CodableLambdaHandler<H>>(CodableLambdaHandler<H>.self, eventLoop: eventLoop, logger: logger)
     }
@@ -223,6 +225,7 @@ public enum LambdaRuntimeFactory {
     ///     - handlerType: The ``EventLoopLambdaHandler`` type the `LambdaRuntime` shall create and manage.
     ///     - eventLoop: An `EventLoop` to run the Lambda on.
     ///     - logger: A `Logger` to log the Lambda events.
+    @inlinable
     public static func makeRuntime<H: EventLoopLambdaHandler>(_ handlerType: H.Type, eventLoop: any EventLoop, logger: Logger) -> LambdaRuntime<some ByteBufferLambdaHandler> {
         LambdaRuntime<CodableEventLoopLambdaHandler<H>>(CodableEventLoopLambdaHandler<H>.self, eventLoop: eventLoop, logger: logger)
     }
