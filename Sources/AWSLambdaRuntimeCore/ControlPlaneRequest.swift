@@ -28,7 +28,8 @@ enum ControlPlaneResponse: Hashable {
     case error(ErrorResponse)
 }
 
-struct Invocation: Hashable {
+@usableFromInline
+package struct Invocation: Sendable, Hashable {
     let requestID: String
     let deadlineInMillisSinceEpoch: Int64
     let invokedFunctionARN: String

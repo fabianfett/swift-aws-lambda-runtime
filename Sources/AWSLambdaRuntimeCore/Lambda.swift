@@ -24,7 +24,7 @@ import ucrt
 #error("Unsupported platform")
 #endif
 
-public enum Lambda {}
+public enum Lambda: Sendable {}
 
 // MARK: - Public API
 

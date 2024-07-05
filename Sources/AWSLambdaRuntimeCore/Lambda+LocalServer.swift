@@ -57,7 +57,7 @@ private enum LocalLambda {
         public init(invocationEndpoint: String?) {
             let configuration = LambdaConfiguration()
             var logger = Logger(label: "LocalLambdaServer")
-            logger.logLevel = configuration.general.logLevel
+//            logger.logLevel = configuration.general.logLevel
             self.logger = logger
             self.group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
             self.host = configuration.runtimeEngine.ip

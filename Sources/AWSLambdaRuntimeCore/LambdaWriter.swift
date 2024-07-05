@@ -7,8 +7,10 @@
 
 import NIOCore
 
+@usableFromInline
 final class Writable: Sendable {
 
+    @usableFromInline
     init() {
 
     }

@@ -21,17 +21,24 @@ public struct LambdaResponse {
     public struct Writer {
         let backing: Writable
 
+        @usableFromInline
+        init(backing: Writable) {
+            self.backing = backing
+        }
+
         func write(_ byteBuffer: ByteBuffer) async throws {
             try await self.backing.write(byteBuffer)
         }
     }
 
+    @usableFromInline
     enum Backing {
         case none
         case singleShot(ByteBuffer)
         case stream((Writer) async throws -> ())
     }
 
+    @usableFromInline
     let backing: Backing
 
     public init() {

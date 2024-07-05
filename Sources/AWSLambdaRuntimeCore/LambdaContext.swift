@@ -32,7 +32,6 @@ public struct LambdaContext: CustomDebugStringConvertible {
         let cognitoIdentity: String?
         let clientContext: String?
         let logger: Logger
-        let eventLoop: EventLoop
 
         init(
             requestID: String,
@@ -41,8 +40,7 @@ public struct LambdaContext: CustomDebugStringConvertible {
             deadline: DispatchWallTime,
             cognitoIdentity: String?,
             clientContext: String?,
-            logger: Logger,
-            eventLoop: EventLoop
+            logger: Logger
         ) {
             self.requestID = requestID
             self.traceID = traceID
@@ -51,7 +49,6 @@ public struct LambdaContext: CustomDebugStringConvertible {
             self.cognitoIdentity = cognitoIdentity
             self.clientContext = clientContext
             self.logger = logger
-            self.eventLoop = eventLoop
         }
     }
  
@@ -100,9 +97,9 @@ public struct LambdaContext: CustomDebugStringConvertible {
     ///
     /// - note: The `EventLoop` is shared with the Lambda runtime engine and should be handled with extra care.
     ///         Most importantly the `EventLoop` must never be blocked.
-    public var eventLoop: EventLoop {
-        self.storage.eventLoop
-    }
+//    public var eventLoop: EventLoop {
+//        self.storage.eventLoop
+//    }
 
     public mutating func addBackgroundTask(_ closure: @escaping @Sendable () async -> ()) {
         self.taskGroup.addTask(operation: closure)
@@ -116,7 +113,6 @@ public struct LambdaContext: CustomDebugStringConvertible {
         cognitoIdentity: String? = nil,
         clientContext: String? = nil,
         logger: Logger,
-        eventLoop: EventLoop,
         taskGroup: TaskGroup<Void>
     ) {
         self.storage = _Storage(
@@ -126,8 +122,7 @@ public struct LambdaContext: CustomDebugStringConvertible {
             deadline: deadline,
             cognitoIdentity: cognitoIdentity,
             clientContext: clientContext,
-            logger: logger,
-            eventLoop: eventLoop
+            logger: logger
         )
         self.taskGroup = taskGroup
     }
@@ -150,7 +145,8 @@ public struct LambdaContext: CustomDebugStringConvertible {
 }
 
 extension LambdaContext {
-    init(logger: Logger, eventLoop: EventLoop, invocation: Invocation, taskGroup: TaskGroup<Void>) {
+    @usableFromInline
+    init(logger: Logger, invocation: Invocation, taskGroup: TaskGroup<Void>) {
         self.init(
             requestID: invocation.requestID,
             traceID: invocation.traceID,
@@ -159,7 +155,6 @@ extension LambdaContext {
             cognitoIdentity: invocation.cognitoIdentity,
             clientContext: invocation.clientContext,
             logger: logger,
-            eventLoop: eventLoop,
             taskGroup: taskGroup
         )
     }

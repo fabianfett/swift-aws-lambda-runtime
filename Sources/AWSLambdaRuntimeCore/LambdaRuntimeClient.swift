@@ -21,7 +21,7 @@ import NIOHTTP1
 /// * /runtime/invocation/response
 /// * /runtime/invocation/error
 /// * /runtime/init/error
-internal struct LambdaRuntimeClient {
+struct LambdaRuntimeClient: LambdaRuntimeClientProtocol {
     private let eventLoop: EventLoop
     private let allocator = ByteBufferAllocator()
     private let httpClient: HTTPClient
@@ -103,6 +103,10 @@ internal struct LambdaRuntimeClient {
         } catch HTTPClient.Errors.connectionResetByPeer {
             throw LambdaRuntimeError.upstreamError("connectionResetByPeer")
         }
+    }
+
+    func run() async {
+
     }
 }
 

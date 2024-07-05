@@ -17,19 +17,19 @@ import Logging
 import NIOCore
 
 @usableFromInline
-internal struct LambdaConfiguration: CustomStringConvertible {
+internal struct LambdaConfiguration: Sendable, CustomStringConvertible {
     let runtimeEngine: RuntimeEngine
 
     @usableFromInline
     init() {
-        self.init(general: .init(), runtimeEngine: .init())
+        self.init(runtimeEngine: .init())
     }
 
     init(runtimeEngine: RuntimeEngine? = nil) {
         self.runtimeEngine = runtimeEngine ?? RuntimeEngine()
     }
 
-    struct RuntimeEngine: CustomStringConvertible {
+    struct RuntimeEngine: Sendable, CustomStringConvertible {
         let ip: String
         let port: Int
         let requestTimeout: TimeAmount?
@@ -51,6 +51,6 @@ internal struct LambdaConfiguration: CustomStringConvertible {
 
     @usableFromInline
     var description: String {
-        "\(Self.self)\n  \(self.general))\n  \(self.runtimeEngine)"
+        "\(Self.self)\n  \(self.runtimeEngine)"
     }
 }

@@ -68,25 +68,45 @@ public final class LambdaRuntime<Handler: LambdaHandler>: Sendable {
 
     public func run() async throws {
         let client = LambdaRuntimeClient(eventLoop: self.eventLoop, configuration: self.configuration.runtimeEngine)
-        var logger = self.logger
 
-        while !Task.isCancelled {
-            let (invocation, request) = try await client.getNextInvocation(logger: self.logger)
+        try await withThrowingTaskGroup(of: Void.self) { taskGroup in
+            taskGroup.addTask {
+                await client.run()
+            }
 
-            await withTaskGroup(of: Void.self) { taskGroup in
+            try await Lambda.runLoop(client: client, handler: self.handler, logger: self.logger)
+        }
+    }
+}
+
+extension Lambda {
+
+    @inlinable
+    package static func runLoop<Client: LambdaRuntimeClientProtocol, Handler: LambdaHandler>(
+        client: Client,
+        handler: Handler,
+        logger: Logger
+    ) async throws {
+
+        await withTaskGroup(of: Void.self) { taskGroup in
+            while !Task.isCancelled {
+                let (invocation, request): (Invocation, ByteBuffer)
+                do {
+                    (invocation, request) = try await client.getNextInvocation(logger: logger)
+                } catch {
+                    return
+                }
 
                 let context = LambdaContext(
                     logger: logger,
-                    eventLoop: self.eventLoop,
                     invocation: invocation,
                     taskGroup: taskGroup
                 )
 
                 let result: Result<LambdaResponse, any Error>
                 do {
-                    let response = try await self.handler.handle(request, context: context)
+                    let response = try await handler.handle(request, context: context)
                     result = .success(response)
-
                 } catch {
                     result = .failure(error)
                 }
@@ -96,10 +116,10 @@ public final class LambdaRuntime<Handler: LambdaHandler>: Sendable {
                     case .success(let response):
                         switch response.backing {
                         case .none:
-                            try await client.reportResults(logger: self.logger, invocation: invocation, result: .success(nil))
+                            try await client.reportResults(logger: logger, invocation: invocation, result: .success(nil))
 
                         case .singleShot(let byteBuffer):
-                            try await client.reportResults(logger: self.logger, invocation: invocation, result: .success(byteBuffer))
+                            try await client.reportResults(logger: logger, invocation: invocation, result: .success(byteBuffer))
 
                         case .stream(let stream):
                             do {
@@ -108,11 +128,10 @@ public final class LambdaRuntime<Handler: LambdaHandler>: Sendable {
                             } catch {
 
                             }
-
                         }
 
                     case .failure(let failure):
-                        try await client.reportResults(logger: self.logger, invocation: invocation, result: .failure(failure))
+                        try await client.reportResults(logger: logger, invocation: invocation, result: .failure(failure))
                     }
                 } catch {
 
@@ -126,4 +145,11 @@ public final class LambdaRuntime<Handler: LambdaHandler>: Sendable {
 
         }
     }
+}
+
+@usableFromInline
+package protocol LambdaRuntimeClientProtocol {
+    func getNextInvocation(logger: Logger) async throws -> (Invocation, ByteBuffer)
+
+    func reportResults(logger: Logger, invocation: Invocation, result: Result<ByteBuffer?, Error>) async throws
 }
