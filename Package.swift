@@ -25,6 +25,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", .upToNextMajor(from: "2.67.0")),
         .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.6.1")),
+        .package(url: "https://github.com/apple/swift-testing.git", .upToNextMinor(from: "0.10.0")),
     ],
     targets: [
         .target(
@@ -56,15 +57,21 @@ let package = Package(
                 )
             )
         ),
-        .testTarget(name: "AWSLambdaRuntimeCoreTests", dependencies: [
-            .byName(name: "AWSLambdaRuntimeCore"),
-            .product(name: "NIOTestUtils", package: "swift-nio"),
-            .product(name: "NIOFoundationCompat", package: "swift-nio"),
-        ]),
-        .testTarget(name: "AWSLambdaRuntimeTests", dependencies: [
-            .byName(name: "AWSLambdaRuntimeCore"),
-            .byName(name: "AWSLambdaRuntime"),
-        ]),
+        .testTarget(
+            name: "AWSLambdaRuntimeCoreTests",
+            dependencies: [
+                .byName(name: "AWSLambdaRuntimeCore"),
+                .product(name: "NIOTestUtils", package: "swift-nio"),
+                .product(name: "NIOFoundationCompat", package: "swift-nio"),
+            ]
+        ),
+        .testTarget(
+            name: "AWSLambdaRuntimeTests",
+            dependencies: [
+                .byName(name: "AWSLambdaRuntimeCore"),
+                .byName(name: "AWSLambdaRuntime"),
+            ]
+        ),
         // testing helper
         .target(name: "AWSLambdaTesting", dependencies: [
             .byName(name: "AWSLambdaRuntime"),

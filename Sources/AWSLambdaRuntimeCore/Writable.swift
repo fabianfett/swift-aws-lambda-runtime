@@ -8,11 +8,17 @@
 import NIOCore
 
 @usableFromInline
-final class Writable: Sendable {
+final actor Writable: Sendable {
+
+    nonisolated var unownedExecutor: UnownedSerialExecutor {
+        self.eventLoop.executor.asUnownedSerialExecutor()
+    }
+
+    private let eventLoop: EventLoop
 
     @usableFromInline
-    init() {
-
+    init(eventLoop: EventLoop) {
+        self.eventLoop = eventLoop
     }
 
     func write(_ byteBuffer: ByteBuffer) async throws {
@@ -25,7 +31,12 @@ final class Writable: Sendable {
         case finished
     }
 
-    func getBytes() -> GetBytesResult {
+    nonisolated func getBytes() -> GetBytesResult {
+
+        self.assumeIsolated {
+            
+        }
+
         fatalError("TODO: Unimplemented")
     }
 }
