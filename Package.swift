@@ -1,14 +1,16 @@
-// swift-tools-version:5.9
+// swift-tools-version:5.10
 
 import PackageDescription
+
+let swiftSettings: [SwiftSetting] = [
+    .enableUpcomingFeature("StrictConcurrency"),
+    .unsafeFlags(["-require-explicit-sendable"]),
+]
 
 let package = Package(
     name: "swift-aws-lambda-runtime",
     platforms: [
-        .macOS(.v12),
-        .iOS(.v15),
-        .tvOS(.v15),
-        .watchOS(.v8),
+        .macOS(.v14),
     ],
     products: [
         // this library exports `AWSLambdaRuntimeCore` and adds Foundation convenience methods
@@ -22,22 +24,29 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-nio.git", .upToNextMajor(from: "2.67.0")),
-        .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.5.4")),
-        .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0"),
+        .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.6.1")),
     ],
     targets: [
-        .target(name: "AWSLambdaRuntime", dependencies: [
-            .byName(name: "AWSLambdaRuntimeCore"),
-            .product(name: "NIOCore", package: "swift-nio"),
-            .product(name: "NIOFoundationCompat", package: "swift-nio"),
-        ]),
-        .target(name: "AWSLambdaRuntimeCore", dependencies: [
-            .product(name: "Logging", package: "swift-log"),
-            .product(name: "NIOHTTP1", package: "swift-nio"),
-            .product(name: "NIOCore", package: "swift-nio"),
-            .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
-            .product(name: "NIOPosix", package: "swift-nio"),
-        ]),
+        .target(
+            name: "AWSLambdaRuntime",
+            dependencies: [
+                .byName(name: "AWSLambdaRuntimeCore"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOFoundationCompat", package: "swift-nio"),
+            ],
+            swiftSettings: swiftSettings
+        ),
+        .target(
+            name: "AWSLambdaRuntimeCore",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIOHTTP1", package: "swift-nio"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOConcurrencyHelpers", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
+            ],
+            swiftSettings: swiftSettings
+        ),
         .plugin(
             name: "AWSLambdaPackager",
             capability: .command(

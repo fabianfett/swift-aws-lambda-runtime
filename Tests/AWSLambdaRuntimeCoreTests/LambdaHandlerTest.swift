@@ -24,7 +24,7 @@ class LambdaHandlerTest: XCTestCase {
         XCTAssertNoThrow(try server.start().wait())
         defer { XCTAssertNoThrow(try server.stop().wait()) }
 
-        struct TestBootstrapHandler: SimpleLambdaHandler {
+        struct TestBootstrapHandler: CodableLambdaHandler {
             func handle(_ event: String, context: LambdaContext) async throws -> String {
                 event
             }

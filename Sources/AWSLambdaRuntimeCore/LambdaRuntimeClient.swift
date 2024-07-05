@@ -32,10 +32,11 @@ internal struct LambdaRuntimeClient {
     }
 
     /// Requests invocation from the control plane.
-    func getNextInvocation(logger: Logger) -> EventLoopFuture<(Invocation, ByteBuffer)> {
+    func getNextInvocation(logger: Logger) async throws -> (Invocation, ByteBuffer) {
         let url = Consts.invocationURLPrefix + Consts.getNextInvocationURLSuffix
         logger.debug("requesting work from lambda runtime engine using \(url)")
-        return self.httpClient.get(url: url, headers: LambdaRuntimeClient.defaultHeaders).flatMapThrowing { response in
+        do {
+            let response = try await self.httpClient.get(url: url, headers: LambdaRuntimeClient.defaultHeaders)
             guard response.status == .ok else {
                 throw LambdaRuntimeError.badStatusCode(response.status)
             }
@@ -44,20 +45,15 @@ internal struct LambdaRuntimeClient {
                 throw LambdaRuntimeError.noBody
             }
             return (invocation, event)
-        }.flatMapErrorThrowing { error in
-            switch error {
-            case HTTPClient.Errors.timeout:
-                throw LambdaRuntimeError.upstreamError("timeout")
-            case HTTPClient.Errors.connectionResetByPeer:
-                throw LambdaRuntimeError.upstreamError("connectionResetByPeer")
-            default:
-                throw error
-            }
+        } catch HTTPClient.Errors.timeout {
+            throw LambdaRuntimeError.upstreamError("timeout")
+        } catch HTTPClient.Errors.connectionResetByPeer {
+            throw LambdaRuntimeError.upstreamError("connectionResetByPeer")
         }
     }
 
     /// Reports a result to the Runtime Engine.
-    func reportResults(logger: Logger, invocation: Invocation, result: Result<ByteBuffer?, Error>) -> EventLoopFuture<Void> {
+    func reportResults(logger: Logger, invocation: Invocation, result: Result<ByteBuffer?, Error>) async throws {
         var url = Consts.invocationURLPrefix + "/" + invocation.requestID
         var body: ByteBuffer?
         let headers: HTTPHeaders
@@ -76,51 +72,37 @@ internal struct LambdaRuntimeClient {
             headers = LambdaRuntimeClient.errorHeaders
         }
         logger.debug("reporting results to lambda runtime engine using \(url)")
-        return self.httpClient.post(url: url, headers: headers, body: body).flatMapThrowing { response in
+        do {
+            let response = try await self.httpClient.post(url: url, headers: headers, body: body)
             guard response.status == .accepted else {
                 throw LambdaRuntimeError.badStatusCode(response.status)
             }
-            return ()
-        }.flatMapErrorThrowing { error in
-            switch error {
-            case HTTPClient.Errors.timeout:
-                throw LambdaRuntimeError.upstreamError("timeout")
-            case HTTPClient.Errors.connectionResetByPeer:
-                throw LambdaRuntimeError.upstreamError("connectionResetByPeer")
-            default:
-                throw error
-            }
+        } catch HTTPClient.Errors.timeout {
+            throw LambdaRuntimeError.upstreamError("timeout")
+        } catch HTTPClient.Errors.connectionResetByPeer {
+            throw LambdaRuntimeError.upstreamError("connectionResetByPeer")
         }
     }
 
     /// Reports an initialization error to the Runtime Engine.
-    func reportInitializationError(logger: Logger, error: Error) -> EventLoopFuture<Void> {
+    func reportInitializationError(logger: Logger, error: Error) async throws {
         let url = Consts.postInitErrorURL
         let errorResponse = ErrorResponse(errorType: Consts.initializationError, errorMessage: "\(error)")
         let bytes = errorResponse.toJSONBytes()
         var body = self.allocator.buffer(capacity: bytes.count)
         body.writeBytes(bytes)
         logger.warning("reporting initialization error to lambda runtime engine using \(url)")
-        return self.httpClient.post(url: url, headers: LambdaRuntimeClient.errorHeaders, body: body).flatMapThrowing { response in
+        do {
+            let response = try await self.httpClient.post(url: url, headers: LambdaRuntimeClient.errorHeaders, body: body)
             guard response.status == .accepted else {
                 throw LambdaRuntimeError.badStatusCode(response.status)
             }
             return ()
-        }.flatMapErrorThrowing { error in
-            switch error {
-            case HTTPClient.Errors.timeout:
-                throw LambdaRuntimeError.upstreamError("timeout")
-            case HTTPClient.Errors.connectionResetByPeer:
-                throw LambdaRuntimeError.upstreamError("connectionResetByPeer")
-            default:
-                throw error
-            }
+        } catch HTTPClient.Errors.timeout {
+            throw LambdaRuntimeError.upstreamError("timeout")
+        } catch HTTPClient.Errors.connectionResetByPeer {
+            throw LambdaRuntimeError.upstreamError("connectionResetByPeer")
         }
-    }
-
-    /// Cancels the current request, if one is running. Only needed for debugging purposes
-    func cancel() {
-        self.httpClient.cancel()
     }
 }
 

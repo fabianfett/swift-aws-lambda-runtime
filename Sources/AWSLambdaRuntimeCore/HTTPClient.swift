@@ -2,7 +2,7 @@
 //
 // This source file is part of the SwiftAWSLambdaRuntime open source project
 //
-// Copyright (c) 2017-2021 Apple Inc. and the SwiftAWSLambdaRuntime project authors
+// Copyright (c) 2017-2024 Apple Inc. and the SwiftAWSLambdaRuntime project authors
 // Licensed under Apache License v2.0
 //
 // See LICENSE.txt for license information
@@ -20,7 +20,11 @@ import NIOPosix
 /// A barebone HTTP client to interact with AWS Runtime Engine which is an HTTP server.
 /// Note that Lambda Runtime API dictate that only one requests runs at a time.
 /// This means we can avoid locks and other concurrency concern we would otherwise need to build into the client
-internal final class HTTPClient {
+internal final actor HTTPClient {
+    nonisolated var unownedExecutor: UnownedSerialExecutor {
+        self.eventLoop.executor.asUnownedSerialExecutor()
+    }
+
     private let eventLoop: EventLoop
     private let configuration: LambdaConfiguration.RuntimeEngine
     private let targetHost: String
@@ -34,25 +38,31 @@ internal final class HTTPClient {
         self.targetHost = "\(self.configuration.ip):\(self.configuration.port)"
     }
 
-    func get(url: String, headers: HTTPHeaders, timeout: TimeAmount? = nil) -> EventLoopFuture<Response> {
-        self.execute(Request(targetHost: self.targetHost,
-                             url: url,
-                             method: .GET,
-                             headers: headers,
-                             timeout: timeout ?? self.configuration.requestTimeout))
+    func get(url: String, headers: HTTPHeaders, timeout: TimeAmount? = nil) async throws -> Response {
+        let request = Request(
+            targetHost: self.targetHost,
+            url: url,
+            method: .GET,
+            headers: headers,
+            timeout: timeout ?? self.configuration.requestTimeout
+        )
+        return try await self.execute(request, validate: true)
     }
 
-    func post(url: String, headers: HTTPHeaders, body: ByteBuffer?, timeout: TimeAmount? = nil) -> EventLoopFuture<Response> {
-        self.execute(Request(targetHost: self.targetHost,
-                             url: url,
-                             method: .POST,
-                             headers: headers,
-                             body: body,
-                             timeout: timeout ?? self.configuration.requestTimeout))
+    func post(url: String, headers: HTTPHeaders, body: ByteBuffer?, timeout: TimeAmount? = nil) async throws -> Response {
+        let request = Request(
+            targetHost: self.targetHost,
+            url: url,
+            method: .POST,
+            headers: headers,
+            body: body,
+            timeout: timeout ?? self.configuration.requestTimeout
+        )
+        return try await self.execute(request, validate: true)
     }
 
     /// cancels the current request if there is one
-    func cancel() {
+    private func cancel() {
         guard self.executing else {
             // there is no request running. nothing to cancel
             return
@@ -66,36 +76,40 @@ internal final class HTTPClient {
     }
 
     // TODO: cap reconnect attempt
-    private func execute(_ request: Request, validate: Bool = true) -> EventLoopFuture<Response> {
-        if validate {
-            precondition(self.executing == false, "expecting single request at a time")
-            self.executing = true
-        }
+    private func execute(_ request: Request, validate: Bool) async throws -> Response {
+        try await withTaskCancellationHandler {
+            if validate {
+                precondition(self.executing == false, "expecting single request at a time")
+                self.executing = true
+            }
 
-        switch self.state {
-        case .disconnected:
-            return self.connect().flatMap { channel -> EventLoopFuture<Response> in
+            switch self.state {
+            case .disconnected:
+                let channel = try await self.connect()
                 self.state = .connected(channel)
-                return self.execute(request, validate: false)
-            }
-        case .connected(let channel):
-            guard channel.isActive else {
-                self.state = .disconnected
-                return self.execute(request, validate: false)
-            }
+                return try await self.execute(request, validate: false)
 
-            let promise = channel.eventLoop.makePromise(of: Response.self)
-            promise.futureResult.whenComplete { _ in
-                precondition(self.executing == true, "invalid execution state")
-                self.executing = false
+            case .connected(let channel):
+                guard channel.isActive else {
+                    self.state = .disconnected
+                    return try await self.execute(request, validate: false)
+                }
+
+                defer { self.executing = false }
+
+                let promise = channel.eventLoop.makePromise(of: Response.self)
+                let wrapper = HTTPRequestWrapper(request: request, promise: promise)
+                channel.writeAndFlush(wrapper).cascadeFailure(to: promise)
+                return try await promise.futureResult.get()
             }
-            let wrapper = HTTPRequestWrapper(request: request, promise: promise)
-            channel.writeAndFlush(wrapper).cascadeFailure(to: promise)
-            return promise.futureResult
+        } onCancel: {
+            Task {
+                await self.cancel()
+            }
         }
     }
 
-    private func connect() -> EventLoopFuture<Channel> {
+    private func connect() async throws -> Channel {
         let bootstrap = ClientBootstrap(group: self.eventLoop)
             .channelInitializer { channel in
                 do {
@@ -111,13 +125,8 @@ internal final class HTTPClient {
                 }
             }
 
-        do {
-            // connect directly via socket address to avoid happy eyeballs (perf)
-            let address = try SocketAddress(ipAddress: self.configuration.ip, port: self.configuration.port)
-            return bootstrap.connect(to: address)
-        } catch {
-            return self.eventLoop.makeFailedFuture(error)
-        }
+        let address = try SocketAddress(ipAddress: self.configuration.ip, port: self.configuration.port)
+        return try await bootstrap.connect(to: address).get()
     }
 
     internal struct Request: Equatable {

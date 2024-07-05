@@ -2,7 +2,7 @@
 //
 // This source file is part of the SwiftAWSLambdaRuntime open source project
 //
-// Copyright (c) 2017-2022 Apple Inc. and the SwiftAWSLambdaRuntime project authors
+// Copyright (c) 2017-2024 Apple Inc. and the SwiftAWSLambdaRuntime project authors
 // Licensed under Apache License v2.0
 //
 // See LICENSE.txt for license information
@@ -21,56 +21,9 @@ import Dispatch
 import Logging
 import NIOCore
 
-// MARK: - InitializationContext
-
-/// Lambda runtime initialization context.
-/// The Lambda runtime generates and passes the `LambdaInitializationContext` to the Handlers
-/// ``ByteBufferLambdaHandler/makeHandler(context:)`` or ``LambdaHandler/init(context:)``
-/// as an argument.
-public struct LambdaInitializationContext: Sendable {
-    /// `Logger` to log with.
-    ///
-    /// - note: The `LogLevel` can be configured using the `LOG_LEVEL` environment variable.
-    public let logger: Logger
-
-    /// The `EventLoop` the Lambda is executed on. Use this to schedule work with.
-    ///
-    /// - note: The `EventLoop` is shared with the Lambda runtime engine and should be handled with extra care.
-    ///         Most importantly the `EventLoop` must never be blocked.
-    public let eventLoop: EventLoop
-
-    /// `ByteBufferAllocator` to allocate `ByteBuffer`.
-    public let allocator: ByteBufferAllocator
-
-    /// ``LambdaTerminator`` to register shutdown operations.
-    public let terminator: LambdaTerminator
-
-    init(logger: Logger, eventLoop: EventLoop, allocator: ByteBufferAllocator, terminator: LambdaTerminator) {
-        self.eventLoop = eventLoop
-        self.logger = logger
-        self.allocator = allocator
-        self.terminator = terminator
-    }
-
-    /// This interface is not part of the public API and must not be used by adopters. This API is not part of semver versioning.
-    public static func __forTestsOnly(
-        logger: Logger,
-        eventLoop: EventLoop
-    ) -> LambdaInitializationContext {
-        LambdaInitializationContext(
-            logger: logger,
-            eventLoop: eventLoop,
-            allocator: ByteBufferAllocator(),
-            terminator: LambdaTerminator()
-        )
-    }
-}
-
-// MARK: - Context
-
 /// Lambda runtime context.
 /// The Lambda runtime generates and passes the `LambdaContext` to the Lambda handler as an argument.
-public struct LambdaContext: CustomDebugStringConvertible, Sendable {
+public struct LambdaContext: CustomDebugStringConvertible {
     final class _Storage: Sendable {
         let requestID: String
         let traceID: String
@@ -80,7 +33,6 @@ public struct LambdaContext: CustomDebugStringConvertible, Sendable {
         let clientContext: String?
         let logger: Logger
         let eventLoop: EventLoop
-        let allocator: ByteBufferAllocator
 
         init(
             requestID: String,
@@ -90,8 +42,7 @@ public struct LambdaContext: CustomDebugStringConvertible, Sendable {
             cognitoIdentity: String?,
             clientContext: String?,
             logger: Logger,
-            eventLoop: EventLoop,
-            allocator: ByteBufferAllocator
+            eventLoop: EventLoop
         ) {
             self.requestID = requestID
             self.traceID = traceID
@@ -101,11 +52,11 @@ public struct LambdaContext: CustomDebugStringConvertible, Sendable {
             self.clientContext = clientContext
             self.logger = logger
             self.eventLoop = eventLoop
-            self.allocator = allocator
         }
     }
-
+ 
     private var storage: _Storage
+    private var taskGroup: TaskGroup<Void>
 
     /// The request ID, which identifies the request that triggered the function invocation.
     public var requestID: String {
@@ -153,21 +104,21 @@ public struct LambdaContext: CustomDebugStringConvertible, Sendable {
         self.storage.eventLoop
     }
 
-    /// `ByteBufferAllocator` to allocate `ByteBuffer`.
-    /// This is useful when implementing ``EventLoopLambdaHandler``.
-    public var allocator: ByteBufferAllocator {
-        self.storage.allocator
+    public mutating func addBackgroundTask(_ closure: @escaping @Sendable () async -> ()) {
+        self.taskGroup.addTask(operation: closure)
     }
 
-    init(requestID: String,
-         traceID: String,
-         invokedFunctionARN: String,
-         deadline: DispatchWallTime,
-         cognitoIdentity: String? = nil,
-         clientContext: String? = nil,
-         logger: Logger,
-         eventLoop: EventLoop,
-         allocator: ByteBufferAllocator) {
+    init(
+        requestID: String,
+        traceID: String,
+        invokedFunctionARN: String,
+        deadline: DispatchWallTime,
+        cognitoIdentity: String? = nil,
+        clientContext: String? = nil,
+        logger: Logger,
+        eventLoop: EventLoop,
+        taskGroup: TaskGroup<Void>
+    ) {
         self.storage = _Storage(
             requestID: requestID,
             traceID: traceID,
@@ -176,9 +127,13 @@ public struct LambdaContext: CustomDebugStringConvertible, Sendable {
             cognitoIdentity: cognitoIdentity,
             clientContext: clientContext,
             logger: logger,
-            eventLoop: eventLoop,
-            allocator: allocator
+            eventLoop: eventLoop
         )
+        self.taskGroup = taskGroup
+    }
+
+    public mutating func background(_ body: @escaping @Sendable () -> ()) {
+        self.taskGroup.addTask(operation: body)
     }
 
     public func getRemainingTime() -> TimeAmount {
@@ -192,24 +147,20 @@ public struct LambdaContext: CustomDebugStringConvertible, Sendable {
     public var debugDescription: String {
         "\(Self.self)(requestID: \(self.requestID), traceID: \(self.traceID), invokedFunctionARN: \(self.invokedFunctionARN), cognitoIdentity: \(self.cognitoIdentity ?? "nil"), clientContext: \(self.clientContext ?? "nil"), deadline: \(self.deadline))"
     }
+}
 
-    /// This interface is not part of the public API and must not be used by adopters. This API is not part of semver versioning.
-    public static func __forTestsOnly(
-        requestID: String,
-        traceID: String,
-        invokedFunctionARN: String,
-        timeout: DispatchTimeInterval,
-        logger: Logger,
-        eventLoop: EventLoop
-    ) -> LambdaContext {
-        LambdaContext(
-            requestID: requestID,
-            traceID: traceID,
-            invokedFunctionARN: invokedFunctionARN,
-            deadline: .now() + timeout,
+extension LambdaContext {
+    init(logger: Logger, eventLoop: EventLoop, invocation: Invocation, taskGroup: TaskGroup<Void>) {
+        self.init(
+            requestID: invocation.requestID,
+            traceID: invocation.traceID,
+            invokedFunctionARN: invocation.invokedFunctionARN,
+            deadline: DispatchWallTime(millisSinceEpoch: invocation.deadlineInMillisSinceEpoch),
+            cognitoIdentity: invocation.cognitoIdentity,
+            clientContext: invocation.clientContext,
             logger: logger,
             eventLoop: eventLoop,
-            allocator: ByteBufferAllocator()
+            taskGroup: taskGroup
         )
     }
 }
