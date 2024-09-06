@@ -12,11 +12,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-import XCTest
+import Foundation
+import Testing
 
 @testable import AWSLambdaRuntimeCore
 
-class UtilsTest: XCTestCase {
+@Suite
+struct XRayTraceIDTests {
+    @Test
     func testGenerateXRayTraceID() {
         // the time and identifier should be in hexadecimal digits
         let invalidCharacters = CharacterSet(charactersIn: "abcdef0123456789").inverted
@@ -26,15 +29,15 @@ class UtilsTest: XCTestCase {
             // check the format, see https://docs.aws.amazon.com/xray/latest/devguide/xray-api-sendingdata.html#xray-api-traceids)
             let traceId = AmazonHeaders.generateXRayTraceID()
             let segments = traceId.split(separator: "-")
-            XCTAssertEqual(3, segments.count)
-            XCTAssertEqual("1", segments[0])
-            XCTAssertEqual(8, segments[1].count)
-            XCTAssertNil(segments[1].rangeOfCharacter(from: invalidCharacters))
-            XCTAssertEqual(24, segments[2].count)
-            XCTAssertNil(segments[2].rangeOfCharacter(from: invalidCharacters))
+            #expect(3 == segments.count)
+            #expect("1" == segments[0])
+            #expect(8 == segments[1].count)
+            #expect(segments[1].rangeOfCharacter(from: invalidCharacters) == nil)
+            #expect(24 == segments[2].count)
+            #expect(segments[2].rangeOfCharacter(from: invalidCharacters) == nil)
             values.insert(traceId)
         }
         // check that the generated values are different
-        XCTAssertEqual(values.count, numTests)
+        #expect(values.count == numTests)
     }
 }
